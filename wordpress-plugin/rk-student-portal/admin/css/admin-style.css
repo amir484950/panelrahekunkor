@@ -1,0 +1,180 @@
+/* استایل‌های اختصاصی پنل مدیریت پرتال راه کنکور */
+.rksp-admin-wrap {
+    font-family: inherit;
+    margin: 20px 20px 0 0;
+    color: #1e293b;
+}
+
+.rksp-admin-header {
+    background: #ffffff;
+    padding: 20px 24px;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    border: 1px solid #e2e8f0;
+    margin-bottom: 24px;
+}
+
+.rksp-logo-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rksp-badge {
+    background: #ea580c;
+    color: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 6px;
+    letter-spacing: 0.5px;
+}
+
+.rksp-admin-header h1 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a;
+}
+
+.rksp-subtitle {
+    margin: 6px 0 0;
+    font-size: 13px;
+    color: #64748b;
+}
+
+/* کارت‌های آمار بالای صفحه */
+.rksp-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.rksp-stat-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rksp-stat-card.alert {
+    border-color: #fecaca;
+    background: #fff5f5;
+}
+
+.rksp-stat-title {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.rksp-stat-card.alert .rksp-stat-title {
+    color: #b91c1c;
+}
+
+.rksp-stat-value {
+    font-size: 28px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.rksp-stat-card.alert .rksp-stat-value {
+    color: #dc2626;
+}
+
+/* جداول */
+.rksp-card {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    margin-bottom: 24px;
+}
+
+.rksp-card h2 {
+    font-size: 16px;
+    font-weight: 700;
+    margin: 0 0 16px;
+    color: #0f172a;
+}
+
+.rksp-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: right;
+}
+
+.rksp-table th {
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    padding: 12px 14px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.rksp-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+}
+
+.rksp-badge-expiring {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fef2f2;
+    color: #b91c1c;
+    border: 1px solid #fecaca;
+}
+
+.rksp-badge-expired {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.rksp-badge-active {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #ecfdf5;
+    color: #065f46;
+}
+
+.rksp-loading-skeleton {
+    padding: 30px;
+    text-align: center;
+    color: #64748b;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px dashed #cbd5e1;
+}
+
+.rksp-btn-primary {
+    background: #ea580c;
+    color: #ffffff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.rksp-btn-primary:hover {
+    background: #c2410c;
+}

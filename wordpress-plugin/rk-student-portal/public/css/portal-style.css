@@ -1,0 +1,169 @@
+/* استایل‌های پرتال دانش‌آموز و مشاور راه کنکور در فرانت‌اند */
+.rksp-portal-container {
+    font-family: inherit;
+    color: #1e293b;
+    max-width: 900px;
+    margin: 20px auto;
+    direction: rtl;
+    text-align: right;
+}
+
+.rksp-portal-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+    margin-bottom: 20px;
+}
+
+.rksp-portal-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #0f172a;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.rksp-form-group {
+    margin-bottom: 16px;
+}
+
+.rksp-form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: #475569;
+}
+
+.rksp-form-input, .rksp-form-select, .rksp-form-textarea {
+    width: 100%;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    transition: all 0.2s;
+    outline: none;
+    box-sizing: border-box;
+}
+
+.rksp-form-input:focus, .rksp-form-select:focus, .rksp-form-textarea:focus {
+    border-color: #ea580c;
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+.rksp-submit-btn {
+    background: #ea580c;
+    color: #ffffff;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.2s;
+}
+
+.rksp-submit-btn:hover {
+    background: #c2410c;
+}
+
+.rksp-leaderboard-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-radius: 12px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    margin-bottom: 10px;
+    transition: transform 0.15s;
+}
+
+.rksp-leaderboard-item.highlight-me {
+    border-color: #f97316;
+    background: #fff7ed;
+}
+
+.rksp-leaderboard-item.rank-1 {
+    background: #fffbeb;
+    border-color: #fde68a;
+}
+
+.rksp-rank-num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-weight: 800;
+    background: #e2e8f0;
+    color: #475569;
+    margin-left: 12px;
+}
+
+.rank-1 .rksp-rank-num {
+    background: #f59e0b;
+    color: #fff;
+}
+.rank-2 .rksp-rank-num {
+    background: #94a3b8;
+    color: #fff;
+}
+.rank-3 .rksp-rank-num {
+    background: #d97706;
+    color: #fff;
+}
+
+.rksp-task-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 10px;
+    margin-bottom: 8px;
+}
+
+.rksp-task-row.done {
+    opacity: 0.6;
+    text-decoration: line-through;
+}
+
+/* بنر پروفایل و دکمه‌های سریع */
+.rksp-preset-btn {
+    transition: all 0.15s ease;
+}
+.rksp-preset-btn:hover {
+    background: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+}
+.rksp-preset-btn:active {
+    transform: scale(0.96);
+}
+.rksp-btn-outline {
+    transition: all 0.2s;
+}
+.rksp-btn-outline:hover {
+    background: rgba(239,68,68,0.18) !important;
+}
+
+@media (max-width: 640px) {
+    .rksp-portal-container {
+        margin: 10px;
+        padding: 0;
+    }
+    .rksp-portal-card {
+        padding: 16px;
+        border-radius: 12px;
+    }
+    .rksp-profile-banner {
+        padding: 16px !important;
+        border-radius: 14px !important;
+    }
+}
