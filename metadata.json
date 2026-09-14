@@ -1,6 +1,6 @@
 {
   "name": "RK Student Portal | افزونه پرتال دانش‌آموز و مشاور راه کنکور",
-  "description": "افزونه وردپرس پرتال دانش‌آموز و مشاور راه کنکور (rk-student-portal) به همراه موتور REST API، سیستم احراز هویت توکن، باشگاه ساعت مطالعه و پیشرفت، و پیش‌نمایش تعاملی",
+  "description": "سامانه پرتال دانش‌آموزان، مشاوران و مدیریت راه کنکور جهت پایش ساعات مطالعه، برنامه‌ریزی و تکالیف",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

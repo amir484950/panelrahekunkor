@@ -11,493 +11,718 @@ import {
   CheckCircle2,
   ExternalLink,
   Settings,
-  Sparkles,
-  BarChart3
+  Send,
+  UserCheck
 } from 'lucide-react';
-import { ChannelItem, PlanItem } from '../types';
-import { RegistrationAndConnectionHub } from './RegistrationAndConnectionHub';
-import { apiRequest } from '../api';
+import { ChannelItem } from '../types';
+import { api } from '../api';
 import { ErrorState } from './common/DataStateDisplay';
 
-export const AdminDashboard: React.FC = () => {
+interface AdminDashboardProps {
+  onLogout?: () => void;
+}
 
-  const [adminSection, setAdminSection] = useState<'3steps_hub' | 'darsbama_metrics'>('3steps_hub');
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [stats, setStats] = useState({
-    total_students: 0,
-    unassigned_count: 0,
-    expiring_plans: 0,
-    active_mentors: 0,
+    total_students: 24,
+    unassigned_count: 3,
+    expiring_plans: 5,
+    active_mentors: 6,
   });
-  const [plansTable, setPlansTable] = useState<any[]>([]);
-  const [mentorsWorkload, setMentorsWorkload] = useState<any[]>([]);
+  const [plansTable, setPlansTable] = useState<any[]>([
+    {
+      id: 1,
+      student_id: 110,
+      student_name: 'علیرضا راد',
+      phone: '09121110001',
+      mentor_name: 'دکتر کاظمی',
+      plan_name: '۳ ماهه کنکور تیر',
+      end_date: '2026-09-16',
+      days_left: 1,
+      is_expiring: true,
+      status: 'active'
+    },
+    {
+      id: 2,
+      student_id: 111,
+      student_name: 'سارا حسینی',
+      phone: '09121110002',
+      mentor_name: 'مهندس رضایی',
+      plan_name: '۱ ماهه تخصصی VIP',
+      end_date: '2026-09-18',
+      days_left: 3,
+      is_expiring: true,
+      status: 'active'
+    },
+    {
+      id: 3,
+      student_id: 114,
+      student_name: 'امیرحسین عباسی',
+      phone: '09121110005',
+      mentor_name: 'بدون مشاور',
+      plan_name: 'مشاوره ماهانه',
+      end_date: '2026-09-10',
+      days_left: -4,
+      is_expired: true,
+      status: 'expired'
+    }
+  ]);
+  const [mentorsWorkload, setMentorsWorkload] = useState<any[]>([
+    { id: 2, name: 'دکتر کاظمی', specialty: 'ریاضی و فیزیک', student_count: 5, capacity: 8 },
+    { id: 3, name: 'مهندس رضایی', specialty: 'تجربی و زیست‌شناسی', student_count: 4, capacity: 6 },
+    { id: 4, name: 'خانم علیزاده', specialty: 'انسانی و دروس عمومی', student_count: 3, capacity: 6 },
+  ]);
   const [channels, setChannels] = useState<ChannelItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // فرم تخصیص مشاور
-  const [assignStudentId, setAssignStudentId] = useState(114);
-  const [assignMentorId, setAssignMentorId] = useState(2);
-  const [assignMsg, setAssignMsg] = useState('');
+  // تب‌های مدیریت
+  const [activeTab, setActiveTab] = useState<'overview' | 'assign' | 'register_student' | 'renew_plan'>('overview');
 
-  // فرم افزودن/تمدید طرح
-  const [renewStudentId, setRenewStudentId] = useState(115);
-  const [renewPlanName, setRenewPlanName] = useState('۱ ماه مشاوره VIP پلاس');
-  const [renewEndDate, setRenewEndDate] = useState('2026-10-15');
-  const [renewMsg, setRenewMsg] = useState('');
+  // فرم تخصیص مشاور (/rksp/v1/admin/assign)
+  const [assignStudentId, setAssignStudentId] = useState('');
+  const [assignMentorId, setAssignMentorId] = useState('');
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignMsg, setAssignMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
-  const fetchAdminData = async () => {
+  // فرم ثبت‌نام دانش‌آموز جدید توسط مدیر (/rksp/v1/admin/register-student)
+  const [newStudent, setNewStudent] = useState({
+    name: '',
+    mobile: '',
+    grade: 'دوازدهم',
+    major: 'تجربی',
+    city: 'تهران',
+    mentor_id: '',
+  });
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerMsg, setRegisterMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // فرم تمدید طرح (/rksp/v1/admin/plan/renew)
+  const [renewForm, setRenewForm] = useState({
+    student_id: '',
+    plan_name: 'طرح ۱ ماهه VIP پلاس',
+    price: 1800000,
+    end_date: '2026-10-15',
+  });
+  const [renewLoading, setRenewLoading] = useState(false);
+  const [renewMsg, setRenewMsg] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  const fetchChannels = async () => {
     try {
       setLoading(true);
-      setFetchError(null);
-      const data = await apiRequest<any>('/rksp/v1/admin/overview');
-      if (data) {
-        setStats(data.stats || {});
-        setPlansTable(data.expiring_plans_table || []);
-        setMentorsWorkload(data.mentors_workload || []);
+      const chData = await api.student.channels();
+      if (Array.isArray(chData)) {
+        setChannels(chData);
       }
-
-      try {
-        const chData = await apiRequest<any[]>('/rksp/v1/channels');
-        setChannels(chData || []);
-      } catch {}
     } catch (e: any) {
-      console.error(e);
-      setFetchError(e?.message || 'خطا در ارتباط با سرور.');
+      console.warn('Could not load channels:', e);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchAdminData();
+    fetchChannels();
   }, []);
 
   const handleAssignMentor = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!assignStudentId || !assignMentorId) {
+      setAssignMsg({ text: 'لطفاً شناسه دانش‌آموز و مشاور را وارد نمایید.', type: 'error' });
+      return;
+    }
     try {
-      const data = await apiRequest<any>('/rksp/v1/admin/assign-mentor', {
-        method: 'POST',
-        body: { student_id: assignStudentId, mentor_id: assignMentorId },
+      setAssignLoading(true);
+      setAssignMsg(null);
+      const res = await api.admin.assign({
+        student_id: Number(assignStudentId),
+        mentor_id: Number(assignMentorId),
       });
-      if (data && data.success) {
-        setAssignMsg('مشاور با موفقیت به دانش‌آموز اختصاص یافت.');
-        fetchAdminData();
-      }
-    } catch (e) {
+      setAssignMsg({
+        text: res?.message || 'مشاور با موفقیت به دانش‌آموز اختصاص یافت.',
+        type: 'success',
+      });
+      setAssignStudentId('');
+      setAssignMentorId('');
+    } catch (e: any) {
       console.error(e);
+      setAssignMsg({
+        text: e?.message || 'خطا در تخصیص مشاور به دانش‌آموز.',
+        type: 'error',
+      });
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleRegisterStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newStudent.name || !newStudent.mobile) {
+      setRegisterMsg({ text: 'نام و شماره موبایل دانش‌آموز الزامی است.', type: 'error' });
+      return;
+    }
+    try {
+      setRegisterLoading(true);
+      setRegisterMsg(null);
+      const payload: any = { ...newStudent };
+      if (payload.mentor_id) {
+        payload.mentor_id = Number(payload.mentor_id);
+      }
+      const res = await api.admin.registerStudent(payload);
+      setRegisterMsg({
+        text: res?.message || 'دانش‌آموز با موفقیت در سامانه ثبت گردید.',
+        type: 'success',
+      });
+      setNewStudent({
+        name: '',
+        mobile: '',
+        grade: 'دوازدهم',
+        major: 'تجربی',
+        city: 'تهران',
+        mentor_id: '',
+      });
+    } catch (e: any) {
+      console.error(e);
+      setRegisterMsg({
+        text: e?.message || 'خطا در ثبت دانش‌آموز.',
+        type: 'error',
+      });
+    } finally {
+      setRegisterLoading(false);
     }
   };
 
   const handleRenewPlan = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!renewForm.student_id || !renewForm.end_date) {
+      setRenewMsg({ text: 'شناسه دانش‌آموز و تاریخ پایان جدید الزامی است.', type: 'error' });
+      return;
+    }
     try {
-      const data = await apiRequest<any>('/rksp/v1/admin/plans', {
-        method: 'POST',
-        body: {
-          student_id: renewStudentId,
-          plan_name: renewPlanName,
-          price: 1800000,
-          start_date: new Date().toISOString().split('T')[0],
-          end_date: renewEndDate,
-        },
+      setRenewLoading(true);
+      setRenewMsg(null);
+      const res = await api.admin.renewPlan({
+        student_id: Number(renewForm.student_id),
+        plan_name: renewForm.plan_name,
+        price: Number(renewForm.price),
+        end_date: renewForm.end_date,
       });
-      if (data && data.success) {
-        setRenewMsg('طرح با موفقیت تمدید و فعال شد.');
-        fetchAdminData();
-      }
-    } catch (e) {
+      setRenewMsg({
+        text: res?.message || 'طرح با موفقیت تمدید و فعال شد.',
+        type: 'success',
+      });
+    } catch (e: any) {
       console.error(e);
+      setRenewMsg({
+        text: e?.message || 'خطا در تمدید طرح.',
+        type: 'error',
+      });
+    } finally {
+      setRenewLoading(false);
     }
   };
 
-
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-      {/* هدر پیشخوان وردپرس */}
+      {/* هدر پیشخوان */}
       <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <span className="bg-slate-900 text-white text-[11px] font-mono px-2 py-0.5 rounded font-bold">
-              WP Admin
+              پنل مدیریت
             </span>
             <h1 className="text-xl font-black text-slate-900">
-              پیشخوان نظارتی پرتال راه کنکور (منطبق بر پنل درسباما)
+              پیشخوان نظارتی و مدیریتی راه کنکور
             </h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            مشاهده شاخص‌های کلیدی، مانیتورینگ تاریخ انقضای مشاوره‌ها، انتساب خودکار و مدیریت کانال‌های ارتباطی
+            مدیریت دانش‌آموزان، تخصیص مشاور، تمدید اشتراک‌ها و مانیتورینگ وضعیت تحصیلی
           </p>
         </div>
 
         <button
           type="button"
-          onClick={fetchAdminData}
+          onClick={fetchChannels}
           className="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition-colors"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>به‌روزرسانی داده‌ها</span>
+          <span>به‌روزرسانی</span>
         </button>
       </div>
 
-      {/* سوییچر بخش‌های پیشخوان مدیر */}
+      {/* منوی تب‌های عملیاتی مدیریت */}
       <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl w-fit">
         <button
           type="button"
-          onClick={() => setAdminSection('3steps_hub')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
-            adminSection === '3steps_hub'
-              ? 'bg-white text-orange-600 shadow-sm'
+          onClick={() => setActiveTab('overview')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'overview'
+              ? 'bg-white text-slate-900 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <Sparkles className="w-4 h-4" />
-          <span>چرخه ۳ مرحله‌ای (ثبت‌نام، اتصال و نظارت عملکرد)</span>
-          <span className="bg-orange-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold">بخش اصلی</span>
+          <Users className="w-4 h-4" />
+          <span>پایش اشتراک‌ها و مشاوران</span>
         </button>
 
         <button
           type="button"
-          onClick={() => setAdminSection('darsbama_metrics')}
-          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all ${
-            adminSection === 'darsbama_metrics'
-              ? 'bg-white text-slate-900 shadow-sm'
+          onClick={() => setActiveTab('assign')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'assign'
+              ? 'bg-white text-orange-600 shadow-xs'
               : 'text-slate-600 hover:text-slate-900'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
-          <span>شاخص‌های انقضای اشتراک‌ها و گزارش‌های درسباما</span>
+          <UserCheck className="w-4 h-4" />
+          <span>تخصیص مشاور به دانش‌آموز</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('register_student')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'register_student'
+              ? 'bg-white text-emerald-600 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <UserPlus className="w-4 h-4" />
+          <span>ثبت دانش‌آموز جدید</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab('renew_plan')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all ${
+            activeTab === 'renew_plan'
+              ? 'bg-white text-indigo-600 shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Calendar className="w-4 h-4" />
+          <span>تمدید طرح و اشتراک</span>
         </button>
       </div>
 
-      {/* حالت اول: چرخه ۳ مرحله‌ای و نظارت مدیر */}
-      {adminSection === '3steps_hub' && (
-        <RegistrationAndConnectionHub />
+      {fetchError && <ErrorState onRetry={fetchChannels} message={fetchError} />}
+
+      {/* تب ۱: نمای کلی و پایش */}
+      {activeTab === 'overview' && (
+        <div className="space-y-6">
+          {/* کارت‌های آمار بالا */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">کل دانش‌آموزان</span>
+                <span className="p-2 bg-blue-50 text-blue-600 rounded-xl">
+                  <Users className="w-5 h-5" />
+                </span>
+              </div>
+              <div className="mt-3 text-2xl font-black text-slate-900">{stats.total_students} نفر</div>
+              <div className="text-[11px] text-slate-400 mt-1">فعال در پنل و اپلیکیشن</div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">طرح‌های در آستانه انقضا</span>
+                <span className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <AlertTriangle className="w-5 h-5" />
+                </span>
+              </div>
+              <div className="mt-3 text-2xl font-black text-amber-600">{stats.expiring_plans} طرح</div>
+              <div className="text-[11px] text-amber-600/80 mt-1">کمتر از ۵ روز تا انقضا</div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">بدون مشاور تخصیص‌یافته</span>
+                <span className="p-2 bg-rose-50 text-rose-600 rounded-xl">
+                  <Clock className="w-5 h-5" />
+                </span>
+              </div>
+              <div className="mt-3 text-2xl font-black text-rose-600">{stats.unassigned_count} دانش‌آموز</div>
+              <div className="text-[11px] text-slate-400 mt-1">نیاز به انتساب سریع مشاور</div>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">مشاوران تحصیلی فعال</span>
+                <span className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+                  <ShieldCheck className="w-5 h-5" />
+                </span>
+              </div>
+              <div className="mt-3 text-2xl font-black text-emerald-600">{stats.active_mentors} مشاور</div>
+              <div className="text-[11px] text-slate-400 mt-1">در حال هدایت و نظارت تحصیلی</div>
+            </div>
+          </div>
+
+          {/* جدول مانیتورینگ انقضای طرح‌ها */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-black text-slate-900">وضعیت انقضای اشتراک‌های مشاوره</h3>
+                <p className="text-xs text-slate-500 mt-0.5">هشدار تمدید برای پشتیبانی و جلوگیری از وقفه در مشاوره دانش‌آموزان</p>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead>
+                  <tr className="border-b border-slate-100 text-slate-400 font-bold">
+                    <th className="pb-3 pr-2">شناسه</th>
+                    <th className="pb-3">دانش‌آموز</th>
+                    <th className="pb-3">شماره تماس</th>
+                    <th className="pb-3">مشاور مربوطه</th>
+                    <th className="pb-3">عنوان طرح</th>
+                    <th className="pb-3">تاریخ انقضا</th>
+                    <th className="pb-3">روز باقیمانده</th>
+                    <th className="pb-3 text-left pl-2">عملیات</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {plansTable.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="py-3 pr-2 font-mono text-slate-500">#{item.student_id}</td>
+                      <td className="py-3 font-bold text-slate-900">{item.student_name}</td>
+                      <td className="py-3 font-mono text-slate-600" dir="ltr">{item.phone}</td>
+                      <td className="py-3 text-slate-700">{item.mentor_name}</td>
+                      <td className="py-3 text-slate-700">{item.plan_name}</td>
+                      <td className="py-3 font-mono text-slate-600" dir="ltr">{item.end_date}</td>
+                      <td className="py-3">
+                        {item.is_expired ? (
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-red-100 text-red-800 font-bold text-[11px]">
+                            منقضی شده
+                          </span>
+                        ) : item.days_left <= 2 ? (
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-bold text-[11px]">
+                            {item.days_left} روز مانده
+                          </span>
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-bold text-[11px]">
+                            {item.days_left} روز مانده
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-3 text-left pl-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRenewForm({
+                              ...renewForm,
+                              student_id: String(item.student_id),
+                            });
+                            setActiveTab('renew_plan');
+                          }}
+                          className="px-2.5 py-1 bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold rounded-lg transition-colors text-[11px]"
+                        >
+                          تمدید طرح
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* بار کاری مشاوران */}
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+            <h3 className="text-base font-black text-slate-900 mb-1">توزیع ظرفیت و بار کاری مشاوران</h3>
+            <p className="text-xs text-slate-500 mb-4">میزان تخصیص دانش‌آموزان به هر مشاور تحصیلی</p>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {mentorsWorkload.map((mentor) => (
+                <div key={mentor.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-slate-900 text-sm">{mentor.name}</div>
+                      <div className="text-[11px] text-slate-500">{mentor.specialty}</div>
+                    </div>
+                    <span className="text-xs font-mono font-bold bg-white px-2 py-1 rounded-lg border border-slate-200">
+                      #{mentor.id}
+                    </span>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-500">دانش‌آموزان تحت پوشش:</span>
+                      <span className="font-bold text-slate-800">{mentor.student_count} از {mentor.capacity}</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-500 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (mentor.student_count / mentor.capacity) * 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* کانال‌های ارتباطی */}
+          {channels.length > 0 && (
+            <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+              <h3 className="text-base font-black text-slate-900 mb-1">کانال‌های ارتباطی فعال (`rksp/v1/channels`)</h3>
+              <p className="text-xs text-slate-500 mb-4">مسیرهای پشتیبانی و تماس متصل به سامانه</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {channels.map((ch) => (
+                  <div key={ch.id} className="p-3 border border-slate-200 rounded-xl flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">{ch.title}</span>
+                    <span className="text-xs font-mono text-slate-500" dir="ltr">{ch.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
-      {/* حالت دوم: شاخص‌های اشتراک‌ها و لاگ‌های درسباما */}
-      {adminSection === 'darsbama_metrics' && (
-        fetchError ? (
-          <ErrorState onRetry={fetchAdminData} message={fetchError} />
-        ) : (
-        <div className="space-y-6">
-      {/* کارت‌های آمار بالای صفحه (دقیقاً مشابه عکس ۱۰ درسباما) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold">دانش‌آموزان فعال</span>
-            <Users className="w-4 h-4 text-slate-400" />
+      {/* تب ۲: تخصیص مشاور */}
+      {activeTab === 'assign' && (
+        <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <UserCheck className="w-5 h-5 text-orange-600" />
+            <h3 className="text-base font-black text-slate-900">تخصیص مشاور به دانش‌آموز</h3>
           </div>
-          <div className="text-3xl font-black text-slate-900">{stats.total_students}</div>
-          <div className="text-[11px] text-slate-400 mt-1">ثبت‌شده در جدول اختصاصی</div>
-        </div>
-
-        <div className={`border rounded-2xl p-5 shadow-xs ${stats.unassigned_count > 0 ? 'bg-rose-50/70 border-rose-200' : 'bg-white border-slate-200'}`}>
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className={`text-xs font-bold ${stats.unassigned_count > 0 ? 'text-rose-700' : 'text-slate-500'}`}>
-              دانش‌آموزان بدون مشاور
-            </span>
-            <AlertTriangle className={`w-4 h-4 ${stats.unassigned_count > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-3xl font-black ${stats.unassigned_count > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-            {stats.unassigned_count}
-          </div>
-          <div className="text-[11px] text-rose-600/80 font-semibold mt-1">نیاز به تخصیص سریع مشاور</div>
-        </div>
-
-        <div className={`border rounded-2xl p-5 shadow-xs ${stats.expiring_plans > 0 ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-slate-200'}`}>
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className={`text-xs font-bold ${stats.expiring_plans > 0 ? 'text-amber-800' : 'text-slate-500'}`}>
-              طرح‌های روبه‌انقضا (۷ روز آینده)
-            </span>
-            <Clock className={`w-4 h-4 ${stats.expiring_plans > 0 ? 'text-amber-600' : 'text-slate-400'}`} />
-          </div>
-          <div className={`text-3xl font-black ${stats.expiring_plans > 0 ? 'text-amber-700' : 'text-slate-900'}`}>
-            {stats.expiring_plans}
-          </div>
-          <div className="text-[11px] text-amber-700/80 font-semibold mt-1">فرصت تماس جهت تمدید دوره</div>
-        </div>
-
-        <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-2">
-            <span className="text-xs font-bold">تعداد مشاوران سیستم</span>
-            <ShieldCheck className="w-4 h-4 text-emerald-500" />
-          </div>
-          <div className="text-3xl font-black text-slate-900">{stats.active_mentors}</div>
-          <div className="text-[11px] text-emerald-600 font-semibold mt-1">نقش کاربری `rksp_mentor`</div>
-        </div>
-      </div>
-
-      {/* جدول طرح‌های روبه‌انقضا (مطابق اسکرین‌شات ۱۰) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-black text-slate-900">طرح‌های مشاوره نزدیک به انقضا</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              لیست دانش‌آموزانی که مهلت مشاوره آن‌ها منقضی شده یا ظرف روزهای آینده به پایان می‌رسد (منطبق بر عکس ۱۰)
-            </p>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs sm:text-sm">
-            <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-              <tr>
-                <th className="p-3">#</th>
-                <th className="p-3">دانش‌آموز</th>
-                <th className="p-3">شماره تماس</th>
-                <th className="p-3">طرح مشاوره</th>
-                <th className="p-3">مشاور اختصاصی</th>
-                <th className="p-3">تاریخ پایان</th>
-                <th className="p-3">وضعیت و مهلت</th>
-                <th className="p-3 text-center">عملیات</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {plansTable.map((p, idx) => {
-                const isExpired = p.days_left < 0;
-                const isExpiring = p.days_left >= 0 && p.days_left <= 7;
-
-                let badgeClass = 'bg-emerald-100 text-emerald-800';
-                let label = `${p.days_left} روز باقیمانده`;
-
-                if (isExpired) {
-                  badgeClass = 'bg-rose-100 text-rose-800 font-bold';
-                  label = 'منقضی شده';
-                } else if (isExpiring) {
-                  badgeClass = 'bg-amber-100 text-amber-800 font-bold';
-                  label = `${p.days_left} روز باقیمانده`;
-                }
-
-                return (
-                  <tr key={p.id} className="hover:bg-slate-50/80">
-                    <td className="p-3 font-semibold text-slate-400">{idx + 1}</td>
-                    <td className="p-3 font-bold text-slate-900 whitespace-nowrap">{p.student_name}</td>
-                    <td className="p-3 font-mono text-slate-600 text-xs" dir="ltr">{p.phone}</td>
-                    <td className="p-3 font-semibold text-slate-700 whitespace-nowrap">{p.plan_name}</td>
-                    <td className="p-3 whitespace-nowrap">
-                      {p.mentor_name.includes('بدون') ? (
-                        <span className="text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded">
-                          {p.mentor_name}
-                        </span>
-                      ) : (
-                        <span className="font-semibold text-slate-800">{p.mentor_name}</span>
-                      )}
-                    </td>
-                    <td className="p-3 font-mono text-slate-600 text-xs whitespace-nowrap">{p.end_date}</td>
-                    <td className="p-3 whitespace-nowrap">
-                      <span className={`text-xs px-2.5 py-1 rounded-full ${badgeClass}`}>
-                        {label}
-                      </span>
-                    </td>
-                    <td className="p-3 text-center whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRenewStudentId(p.student_id);
-                          setRenewPlanName(p.plan_name);
-                        }}
-                        className="text-xs font-bold text-orange-600 hover:text-orange-800 bg-orange-50 hover:bg-orange-100 px-3 py-1 rounded-lg transition-colors"
-                      >
-                        تمدید طرح
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* دو ابزار مدیریتی: تخصیص مشاور + تمدید طرح */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* فرم تخصیص مشاور */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-          <h3 className="text-base font-black text-slate-900 mb-1 flex items-center gap-2">
-            <UserPlus className="w-5 h-5 text-orange-600" />
-            تخصیص یا تغییر مشاور اختصاصی
-          </h3>
-          <p className="text-xs text-slate-500 mb-4">
-            ثبت در جدول تاریخچه‌دار <code className="bg-slate-100 px-1 py-0.5 rounded">wp_rksp_assignments</code> با قابلیت ثبت پایان مشاوره قبلی
+          <p className="text-xs text-slate-500 mb-6">
+            اتصال دانش‌آموز به مشاور تحصیلی از طریق اندپوینت استاندارد <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">/rksp/v1/admin/assign</code>
           </p>
 
           <form onSubmit={handleAssignMentor} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">دانش‌آموز</label>
-              <select
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">شناسه (ID) دانش‌آموز</label>
+              <input
+                type="number"
                 value={assignStudentId}
-                onChange={e => setAssignStudentId(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold outline-none"
-              >
-                <option value={114}>دانش‌آموز ۱۴ (دوازدهم انسانی - بدون مشاور)</option>
-                <option value={115}>دانش‌آموز ۱۵ (دوازدهم تجربی - بدون مشاور)</option>
-                <option value={113}>دانش‌آموز ۱۳ (یازدهم تجربی)</option>
-                <option value={101}>دانش‌آموز ۱ (دوازدهم تجربی)</option>
-              </select>
+                onChange={(e) => setAssignStudentId(e.target.value)}
+                placeholder="مثلاً: 114"
+                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-orange-500"
+                required
+              />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">مشاور انتخابی</label>
-              <select
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">شناسه (ID) مشاور تحصیلی</label>
+              <input
+                type="number"
                 value={assignMentorId}
-                onChange={e => setAssignMentorId(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold outline-none"
-              >
-                <option value={2}>مشاور تحصیلی ۱ (۴ دانش‌آموز فعال)</option>
-                <option value={3}>مشاور تحصیلی ۲ (۲ دانش‌آموز فعال)</option>
-                <option value={4}>مشاور تحصیلی ۳ (۳ دانش‌آموز فعال)</option>
-                <option value={5}>مشاور تحصیلی ۴ (۱ دانش‌آموز فعال)</option>
-                <option value={6}>مشاور تحصیلی ۵ (۲ دانش‌آموز فعال)</option>
-              </select>
+                onChange={(e) => setAssignMentorId(e.target.value)}
+                placeholder="مثلاً: 2"
+                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-orange-500"
+                required
+              />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl shadow-xs transition-colors text-sm"
+              disabled={assignLoading}
+              className="w-full bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl shadow-xs transition-colors text-sm flex items-center justify-center gap-2"
             >
-              ثبت انتساب مشاور
+              {assignLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              <span>ثبت تخصیص مشاور</span>
             </button>
 
             {assignMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800">
-                {assignMsg}
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  assignMsg.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {assignMsg.text}
               </div>
             )}
           </form>
         </div>
+      )}
 
-        {/* فرم تمدید طرح */}
-        <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-          <h3 className="text-base font-black text-slate-900 mb-1 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-emerald-600" />
-            تمدید یا ثبت طرح مشاوره جدید
-          </h3>
-          <p className="text-xs text-slate-500 mb-4">
-            ثبت در جدول <code className="bg-slate-100 px-1 py-0.5 rounded">wp_rksp_plans</code> با اعمال تاریخ انقضای جدید
+      {/* تب ۳: ثبت دانش‌آموز جدید توسط مدیر */}
+      {activeTab === 'register_student' && (
+        <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <UserPlus className="w-5 h-5 text-emerald-600" />
+            <h3 className="text-base font-black text-slate-900">ثبت دانش‌آموز جدید در سامانه</h3>
+          </div>
+          <p className="text-xs text-slate-500 mb-6">
+            ایجاد حساب کاربری مستقیم از طریق اندپوینت <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">/rksp/v1/admin/register-student</code>
           </p>
 
-          <form onSubmit={handleRenewPlan} className="space-y-4">
+          <form onSubmit={handleRegisterStudent} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">دانش‌آموز</label>
-              <select
-                value={renewStudentId}
-                onChange={e => setRenewStudentId(Number(e.target.value))}
-                className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold outline-none"
-              >
-                <option value={115}>دانش‌آموز ۱۵ (منقضی شده)</option>
-                <option value={114}>دانش‌آموز ۱۴ (منقضی شده)</option>
-                <option value={110}>دانش‌آموز ۱۰ (۱ روز مانده)</option>
-                <option value={111}>دانش‌آموز ۱۱ (۳ روز مانده)</option>
-              </select>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">نام و نام خانوادگی دانش‌آموز</label>
+              <input
+                type="text"
+                value={newStudent.name}
+                onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                placeholder="مثلاً: پوریا شمس"
+                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">شماره موبایل (جهت ورود و ارسال پیامک)</label>
+              <input
+                type="tel"
+                value={newStudent.mobile}
+                onChange={(e) => setNewStudent({ ...newStudent, mobile: e.target.value })}
+                placeholder="09121234567"
+                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-mono outline-none focus:border-emerald-500 text-left"
+                dir="ltr"
+                required
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">طرح</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">پایه تحصیلی</label>
+                <select
+                  value={newStudent.grade}
+                  onChange={(e) => setNewStudent({ ...newStudent, grade: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500"
+                >
+                  <option value="دهم">دهم</option>
+                  <option value="یازدهم">یازدهم</option>
+                  <option value="دوازدهم">دوازدهم</option>
+                  <option value="فارغ‌التحصیل">فارغ‌التحصیل</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">رشته تحصیلی</label>
+                <select
+                  value={newStudent.major}
+                  onChange={(e) => setNewStudent({ ...newStudent, major: e.target.value })}
+                  className="w-full px-3 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500"
+                >
+                  <option value="تجربی">علوم تجربی</option>
+                  <option value="ریاضی">ریاضی و فیزیک</option>
+                  <option value="انسانی">علوم انسانی</option>
+                  <option value="هنر">هنر / منحصراً زبان</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">شهر</label>
                 <input
                   type="text"
-                  value={renewPlanName}
-                  onChange={e => setRenewPlanName(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-semibold outline-none"
+                  value={newStudent.city}
+                  onChange={(e) => setNewStudent({ ...newStudent, city: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500"
                 />
               </div>
+
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">تاریخ پایان جدید</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">شناسه مشاور (اختیاری)</label>
                 <input
-                  type="date"
-                  value={renewEndDate}
-                  onChange={e => setRenewEndDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-xl text-sm font-mono outline-none"
+                  type="number"
+                  value={newStudent.mentor_id}
+                  onChange={(e) => setNewStudent({ ...newStudent, mentor_id: e.target.value })}
+                  placeholder="اختیاری"
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-emerald-500"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-2.5 rounded-xl shadow-xs transition-colors text-sm"
+              disabled={registerLoading}
+              className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl shadow-xs transition-colors text-sm flex items-center justify-center gap-2"
             >
-              تمدید و فعال‌سازی فوری طرح
+              {registerLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+              <span>ثبت نام دانش‌آموز</span>
             </button>
 
-            {renewMsg && (
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs font-semibold text-emerald-800">
-                {renewMsg}
+            {registerMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  registerMsg.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {registerMsg.text}
               </div>
             )}
           </form>
         </div>
-      </div>
+      )}
 
-      {/* بخش برگه‌های خودکار وردپرس و سازگاری گوتنبرگ (بدون المنتور) */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="bg-blue-100 text-blue-800 text-[11px] font-black px-2 py-0.5 rounded font-mono">
-                WordPress Core Native
-              </span>
-              <h3 className="text-base font-black text-slate-900">
-                برگه‌های استاندارد ساخته‌شده در هسته وردپرس (بدون نیاز به المنتور)
-              </h3>
-            </div>
-            <p className="text-xs text-slate-500 mt-1">
-              در زمان فعال‌سازی افزونه، این ۴ برگه مستقیماً در جدول برگه‌های وردپرس ایجاد شده و با قالب‌های پیش‌فرض و ویرایشگر گوتنبرگ کار می‌کنند.
-            </p>
+      {/* تب ۴: تمدید طرح */}
+      {activeTab === 'renew_plan' && (
+        <div className="max-w-xl mx-auto bg-white border border-slate-200 rounded-2xl p-6 shadow-xs">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar className="w-5 h-5 text-indigo-600" />
+            <h3 className="text-base font-black text-slate-900">تمدید یا ثبت طرح مشاوره</h3>
           </div>
+          <p className="text-xs text-slate-500 mb-6">
+            اعمال تاریخ انقضای جدید از طریق اندپوینت <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-[11px]">/rksp/v1/admin/plan/renew</code>
+          </p>
+
+          <form onSubmit={handleRenewPlan} className="space-y-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1.5">شناسه (ID) دانش‌آموز</label>
+              <input
+                type="number"
+                value={renewForm.student_id}
+                onChange={(e) => setRenewForm({ ...renewForm, student_id: e.target.value })}
+                placeholder="مثلاً: 110"
+                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">عنوان طرح</label>
+                <input
+                  type="text"
+                  value={renewForm.plan_name}
+                  onChange={(e) => setRenewForm({ ...renewForm, plan_name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-semibold outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">تاریخ پایان جدید</label>
+                <input
+                  type="date"
+                  value={renewForm.end_date}
+                  onChange={(e) => setRenewForm({ ...renewForm, end_date: e.target.value })}
+                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm font-mono outline-none focus:border-indigo-500"
+                  required
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={renewLoading}
+              className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl shadow-xs transition-colors text-sm flex items-center justify-center gap-2"
+            >
+              {renewLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              <span>تمدید و فعال‌سازی فوری طرح</span>
+            </button>
+
+            {renewMsg && (
+              <div
+                className={`p-3 rounded-xl text-xs font-semibold ${
+                  renewMsg.type === 'success'
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {renewMsg.text}
+              </div>
+            )}
+          </form>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded">برگه پرتال</span>
-              <h4 className="text-sm font-bold text-slate-900 mt-2">پرتال دانش‌آموز</h4>
-              <p className="text-xs text-slate-500 mt-1">ثبت ساعت مطالعه، تکالیف و نظرات مشاور</p>
-              <div className="text-[11px] font-mono text-slate-400 mt-2" dir="ltr">/student-portal/</div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-slate-200 text-[11px] text-slate-600 font-mono">
-              بلاک: <code>rksp/student-portal</code>
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">برگه پرتال</span>
-              <h4 className="text-sm font-bold text-slate-900 mt-2">پرتال مشاور تحصیلی</h4>
-              <p className="text-xs text-slate-500 mt-1">مدیریت پرونده دانش‌آموزان اختصاصی و گزارش کار</p>
-              <div className="text-[11px] font-mono text-slate-400 mt-2" dir="ltr">/mentor-portal/</div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-slate-200 text-[11px] text-slate-600 font-mono">
-              بلاک: <code>rksp/mentor-portal</code>
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded">برگه رتبه‌بندی</span>
-              <h4 className="text-sm font-bold text-slate-900 mt-2">باشگاه ساعت مطالعه</h4>
-              <p className="text-xs text-slate-500 mt-1">لیدربورد زنده با کش ۵ دقیقه‌ای ترنزینت</p>
-              <div className="text-[11px] font-mono text-slate-400 mt-2" dir="ltr">/study-leaderboard/</div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-slate-200 text-[11px] text-slate-600 font-mono">
-              بلاک: <code>rksp/leaderboard</code>
-            </div>
-          </div>
-
-          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
-            <div>
-              <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded">برگه پیشرفت</span>
-              <h4 className="text-sm font-bold text-slate-900 mt-2">باشگاه پیشرفت و افتخارات</h4>
-              <p className="text-xs text-slate-500 mt-1">فید دستاوردها و رکوردهای مطالعاتی</p>
-              <div className="text-[11px] font-mono text-slate-400 mt-2" dir="ltr">/study-achievements/</div>
-            </div>
-            <div className="mt-3 pt-3 border-t border-slate-200 text-[11px] text-slate-600 font-mono">
-              بلاک: <code>rksp/achievements</code>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
-      )
       )}
     </div>
   );

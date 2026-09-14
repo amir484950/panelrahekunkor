@@ -99,16 +99,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ currentStudent }) 
     }
   }, [currentStudent]);
 
-  useEffect(() => {
-    apiRequest<any[]>('/rksp/v1/students')
-      .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
-          setAllStudents(data);
-        }
-      })
-      .catch(() => {});
-  }, []);
-
 
   // فرم ثبت‌نام دانش‌آموز جدید
   const [regName, setRegName] = useState<string>('');
@@ -192,8 +182,8 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ currentStudent }) 
       let summaryJson: any = null;
       try {
         summaryJson = await api.student.dashboardSummary();
-      } catch {
-        summaryJson = await apiRequest<any>(`/rksp/v1/student/study-summary?student_id=${studentUser.id}`);
+      } catch (e) {
+        console.warn('dashboardSummary error:', e);
       }
 
       if (summaryJson && summaryJson.study_stats) {
@@ -214,12 +204,6 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ currentStudent }) 
           setLeaderboard(lbJson.leaderboard || []);
           setMyRank(lbJson.my_rank || null);
         }
-      } catch {}
-
-      // تسک‌ها
-      try {
-        const tasksJson = await apiRequest<any[]>(`/rksp/v1/tasks/me?student_id=${studentUser.id}`);
-        if (Array.isArray(tasksJson)) setTasks(tasksJson);
       } catch {}
 
       // نظرات
@@ -271,17 +255,11 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ currentStudent }) 
     setSubmittingLog(true);
     setLogSuccessMessage('');
     try {
-      const data = await apiRequest<{ success: boolean }>('/rksp/v1/study-logs', {
-        method: 'POST',
-        body: {
-          student_id: studentUser.id,
-          minutes: Number(studyMinutes),
-          subject: studySubject,
-          date: studyDate,
-          source: deviceMode === 'mobile' ? 'app' : 'panel',
-        },
+      const data = await api.student.createStudyLog({
+        minutes: Number(studyMinutes),
+        subject: studySubject,
       });
-      if (data.success) {
+      if (data) {
         setLogSuccessMessage(`✅ ${studyMinutes} دقیقه مطالعه برای درس "${studySubject}" با موفقیت ثبت شد و در جدول رتبه‌بندی اعمال گردید!`);
         fetchData();
       }
@@ -297,10 +275,7 @@ export const StudentPortal: React.FC<StudentPortalProps> = ({ currentStudent }) 
   const handleToggleTask = async (taskId: number, currentStatus: 'pending' | 'done') => {
     const nextStatus = currentStatus === 'done' ? 'pending' : 'done';
     try {
-      await apiRequest<any>(`/rksp/v1/tasks/${taskId}`, {
-        method: 'PATCH',
-        body: { status: nextStatus },
-      });
+      await api.student.completeTask(taskId);
       setTasks(prev =>
         prev.map(t => (t.id === taskId ? { ...t, status: nextStatus, done_at: nextStatus === 'done' ? 'همین الان' : null } : t))
       );

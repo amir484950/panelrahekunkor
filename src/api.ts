@@ -239,10 +239,10 @@ export const api = {
       apiRequest<{ success: boolean }>('/rkspb/v1/logout', {
         method: 'POST',
       }),
+    ping: () => apiRequest<any>('/rkspb/v1/ping'),
   },
 
-
-  // داده‌های اختصاصی دانش‌آموز
+  // داده‌های اختصاصی دانش‌آموز (/rksp/v1)
   student: {
     dashboardSummary: () => apiRequest<any>('/rksp/v1/student/dashboard-summary'),
     progressChart: () => apiRequest<any>('/rksp/v1/student/progress-chart'),
@@ -253,6 +253,7 @@ export const api = {
     notes: () => apiRequest<any[]>('/rksp/v1/student/notes'),
     plan: () => apiRequest<any>('/rksp/v1/student/plan'),
     channels: () => apiRequest<any[]>('/rksp/v1/channels'),
+    quickAccess: () => apiRequest<any>('/rksp/v1/student/quick-access'),
     createStudyLog: (body: {
       minutes: number;
       subject: string;
@@ -281,26 +282,21 @@ export const api = {
       apiRequest<any>(`/rksp/v1/student/tasks/${id}/complete`, {
         method: 'POST',
       }),
-    // امکانات مدیریت تقویم و عطف
-    createMilestone: (body: any) =>
-      apiRequest<any>('/rksp/v1/student/milestones', {
+  },
+
+  // مشاور (/rksp/v1)
+  mentor: {
+    students: () => apiRequest<any[]>('/rksp/v1/mentor/students'),
+    tasks: (body: {
+      student_id: number;
+      title: string;
+      due_date?: string;
+      description?: string;
+    }) =>
+      apiRequest<any>('/rksp/v1/mentor/tasks', {
         method: 'POST',
         body,
       }),
-    updateMilestone: (id: number | string, body: any) =>
-      apiRequest<any>(`/rksp/v1/student/milestones/${id}`, {
-        method: 'PATCH',
-        body,
-      }),
-    deleteMilestone: (id: number | string) =>
-      apiRequest<any>(`/rksp/v1/student/milestones/${id}`, {
-        method: 'DELETE',
-      }),
-  },
-
-  // مشاور
-  mentor: {
-    students: () => apiRequest<any[]>('/rksp/v1/mentor/students'),
     createTask: (body: {
       student_id: number;
       title: string;
@@ -308,6 +304,16 @@ export const api = {
       description?: string;
     }) =>
       apiRequest<any>('/rksp/v1/mentor/tasks', {
+        method: 'POST',
+        body,
+      }),
+    notes: (body: {
+      student_id: number;
+      note: string;
+      category?: string;
+      visibility?: string;
+    }) =>
+      apiRequest<any>('/rksp/v1/mentor/notes', {
         method: 'POST',
         body,
       }),
@@ -321,50 +327,36 @@ export const api = {
         method: 'POST',
         body,
       }),
-    studentFullDetail: (studentId: number) =>
-      apiRequest<any>(`/rksp/v1/mentor/student-full-detail?student_id=${studentId}`),
+    login: (body: { mobile: string; password?: string }) =>
+      apiRequest<any>('/rksp/v1/mentor/login', {
+        method: 'POST',
+        body: {
+          ...body,
+          mobile: normalizeMobile(body.mobile),
+        },
+      }),
   },
 
-  // مدیریت و پروفایل
+  // مدیریت (/rksp/v1)
   admin: {
-    overview: () => apiRequest<any>('/rksp/v1/admin/overview'),
+    assign: (body: { student_id: number; mentor_id: number }) =>
+      apiRequest<any>('/rksp/v1/admin/assign', {
+        method: 'POST',
+        body,
+      }),
     assignMentor: (body: { student_id: number; mentor_id: number }) =>
-      apiRequest<any>('/rksp/v1/admin/assign-mentor', {
+      apiRequest<any>('/rksp/v1/admin/assign', {
         method: 'POST',
         body,
       }),
-    plans: (body: any) =>
-      apiRequest<any>('/rksp/v1/admin/plans', {
+    registerStudent: (body: any) =>
+      apiRequest<any>('/rksp/v1/admin/register-student', {
         method: 'POST',
         body,
       }),
-    threeStepsData: () => apiRequest<any>('/rksp/v1/admin/three-steps-data'),
-    registerStudentStep: (body: any) =>
-      apiRequest<any>('/rksp/v1/auth/register-student-step', {
+    renewPlan: (body: any) =>
+      apiRequest<any>('/rksp/v1/admin/plan/renew', {
         method: 'POST',
-        body,
-      }),
-    registerMentorStep: (body: any) =>
-      apiRequest<any>('/rksp/v1/auth/register-mentor-step', {
-        method: 'POST',
-        body,
-      }),
-    connectStudentMentor: (body: any) =>
-      apiRequest<any>('/rksp/v1/admin/connect-student-mentor', {
-        method: 'POST',
-        body,
-      }),
-  },
-
-  profile: {
-    get: (userId?: number) =>
-      apiRequest<any>('/rksp/v1/profile/me', {
-        params: userId ? { user_id: userId } : undefined,
-      }),
-    update: (body: any, userId?: number) =>
-      apiRequest<any>('/rksp/v1/profile/me', {
-        method: 'POST',
-        params: userId ? { user_id: userId } : undefined,
         body,
       }),
   },

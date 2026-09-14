@@ -79,23 +79,20 @@ export const MentorPortal: React.FC = () => {
   } | null>(null);
 
   const loadStudentDetail = async (studentId: number) => {
-    try {
-      const data = await apiRequest<any>(`/rksp/v1/mentor/student-full-detail?student_id=${studentId}&mentor_id=${mentorUser.id}`);
-      if (data && data.success) {
-        setStudentDetail({
-          tasks: data.tasks || [],
-          task_stats: data.task_stats || { total: 0, completed: 0, pending: 0, rate: 0 },
-          total_hours: data.total_hours || 0,
-          study_summary: data.study_summary || {
-            today_hours: 0,
-            streak_days: 0,
-            total_tests: 0,
-            subjects: [],
-          },
-        });
-      }
-    } catch (e) {
-      console.error('Error loading student detail:', e);
+    // اطلاعات دانش‌آموز انتخابی از فهرست دانشجویان مشاور تامین می‌گردد
+    const student = students.find(s => s.student_id === studentId || s.id === studentId);
+    if (student) {
+      setStudentDetail({
+        tasks: student.tasks || [],
+        task_stats: student.task_stats || { total: 0, completed: 0, pending: 0, rate: 0 },
+        total_hours: student.total_hours || student.total_study_hours || 0,
+        study_summary: student.study_summary || {
+          today_hours: 0,
+          streak_days: student.streak_days || 0,
+          total_tests: student.total_tests || 0,
+          subjects: student.subjects || [],
+        },
+      });
     }
   };
 
@@ -110,14 +107,14 @@ export const MentorPortal: React.FC = () => {
   const [noteVisibility, setNoteVisibility] = useState<'public' | 'private'>('public');
   const [noteMsg, setNoteMsg] = useState('');
 
-  const loadStudents = async (mentorId: number = mentorUser.id) => {
+  const loadStudents = async (_mentorId?: number) => {
     try {
       setLoading(true);
-      const data = await apiRequest<any[]>(`/rksp/v1/students?mentor_id=${mentorId}`);
+      const data = await api.mentor.students();
       setStudents(data || []);
       if (data && data.length > 0) {
         setSelectedStudent(data[0]);
-        loadStudentDetail(data[0].student_id);
+        loadStudentDetail(data[0].student_id || data[0].id);
       } else {
         setSelectedStudent(null);
         setStudentDetail(null);
@@ -231,21 +228,18 @@ export const MentorPortal: React.FC = () => {
     e.preventDefault();
     if (!selectedStudent || !taskTitle) return;
     try {
-      const data = await apiRequest<any>('/rksp/v1/tasks', {
-        method: 'POST',
-        body: {
-          student_id: selectedStudent.student_id,
-          mentor_id: mentorUser.id,
-          title: taskTitle,
-          description: taskDesc,
-          due_date: taskDueDate,
-        },
+      const studentId = selectedStudent.student_id || selectedStudent.id;
+      const data = await api.mentor.createTask({
+        student_id: studentId,
+        title: taskTitle,
+        description: taskDesc,
+        due_date: taskDueDate,
       });
-      if (data.success) {
+      if (data && (data.success || data.id)) {
         setTaskMsg('تکلیف جدید با موفقیت برای دانش‌آموز ثبت و ارسال شد.');
         setTaskTitle('');
         setTaskDesc('');
-        loadStudents(mentorUser.id);
+        loadStudents();
       }
     } catch (e) {
       console.error(e);
@@ -256,16 +250,13 @@ export const MentorPortal: React.FC = () => {
     e.preventDefault();
     if (!selectedStudent || !noteContent) return;
     try {
-      const data = await apiRequest<any>('/rksp/v1/notes', {
-        method: 'POST',
-        body: {
-          student_id: selectedStudent.student_id,
-          mentor_id: mentorUser.id,
-          content: noteContent,
-          visibility: noteVisibility,
-        },
+      const studentId = selectedStudent.student_id || selectedStudent.id;
+      const data = await api.mentor.createNote({
+        student_id: studentId,
+        note: noteContent,
+        visibility: noteVisibility,
       });
-      if (data.success) {
+      if (data && (data.success || data.id)) {
         setNoteMsg('نظر عملکرد درسی در پرونده دانش‌آموز ثبت گردید.');
         setNoteContent('');
       }

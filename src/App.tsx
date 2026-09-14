@@ -1,66 +1,162 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
+import { AuthScreen } from './components/AuthScreen';
 import { StudentPortal } from './components/StudentPortal';
 import { MentorPortal } from './components/MentorPortal';
 import { AdminDashboard } from './components/AdminDashboard';
-import { RegistrationAndConnectionHub } from './components/RegistrationAndConnectionHub';
-import { UserProfile } from './components/UserProfile';
-import { PluginCodeViewer } from './components/PluginCodeViewer';
-import { ApiExplorer } from './components/ApiExplorer';
-import { UserRole } from './types';
+import { api, tokenStorage, onAuthError } from './api';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'student' | 'mentor' | 'hub' | 'admin' | 'profile' | 'plugin_code' | 'api_docs'>('hub');
-  const [currentRole, setCurrentRole] = useState<UserRole>('rksp_student');
-  const [selectedStudent, setSelectedStudent] = useState<any | null>(null);
+  const [token, setToken] = useState<string | null>(() => tokenStorage.get());
+  const [currentUser, setCurrentUser] = useState<any | null>(() => tokenStorage.getUser());
+  const [role, setRole] = useState<'student' | 'mentor' | 'admin' | null>(() => {
+    const user = tokenStorage.getUser();
+    return user ? detectRole(user) : null;
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(() => {
+    // اگر توکن از قبل ذخیره شده، ابتدا وضعیت اعتبارسنجی را بررسی می‌کنیم
+    return !!tokenStorage.get();
+  });
 
+  function detectRole(user: any): 'student' | 'mentor' | 'admin' {
+    if (!user) return 'student';
+    const roleVal = user.role || (Array.isArray(user.roles) ? user.roles[0] : '');
+    const r = String(roleVal).toLowerCase();
+    if (r.includes('admin')) return 'admin';
+    if (r.includes('mentor') || r.includes('teacher') || r.includes('advisor')) return 'mentor';
+    return 'student';
+  }
+
+  // بررسی نشست کاربری با me() در هنگام بالا آمدن برنامه
+  useEffect(() => {
+    const checkSession = async () => {
+      const savedToken = tokenStorage.get();
+      if (!savedToken) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const res = await api.auth.me();
+        const user = res?.user;
+        if (user) {
+          tokenStorage.setUser(user);
+          setCurrentUser(user);
+          setRole(detectRole(user));
+          setToken(savedToken);
+        } else {
+          // اگر کاربر برنگشت ولی توکن بود، از اطلاعات محلی استفاده کن
+          const localUser = tokenStorage.getUser();
+          if (localUser) {
+            setCurrentUser(localUser);
+            setRole(detectRole(localUser));
+          } else {
+            tokenStorage.remove();
+            setCurrentUser(null);
+            setRole(null);
+            setToken(null);
+          }
+        }
+      } catch (err) {
+        console.warn('Session verification failed, attempting cached user:', err);
+        // اگر خطای شبکه بود ولی کاربر ذخیره شده بود
+        const cachedUser = tokenStorage.getUser();
+        if (cachedUser) {
+          setCurrentUser(cachedUser);
+          setRole(detectRole(cachedUser));
+        } else {
+          tokenStorage.remove();
+          setCurrentUser(null);
+          setRole(null);
+          setToken(null);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkSession();
+
+    // گوش دادن به خطاهای اعتبارسنجی ۴۰۱/۴۰۳
+    const unsubscribe = onAuthError(() => {
+      tokenStorage.remove();
+      setCurrentUser(null);
+      setRole(null);
+      setToken(null);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const handleAuthSuccess = (user: any, newToken: string) => {
+    tokenStorage.set(newToken);
+    tokenStorage.setUser(user);
+    setToken(newToken);
+    setCurrentUser(user);
+    setRole(detectRole(user));
+  };
+
+  const handleLogout = async () => {
+    try {
+      await api.auth.logout();
+    } catch (e) {
+      console.warn('Logout error:', e);
+    } finally {
+      tokenStorage.remove();
+      setToken(null);
+      setCurrentUser(null);
+      setRole(null);
+    }
+  };
+
+  // حالت در حال بررسی نشست
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center font-['Vazirmatn',sans-serif]" dir="rtl">
+        <div className="text-center space-y-4 p-8">
+          <div className="w-12 h-12 border-3 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-slate-900">سامانه جامع راه کنکور</h3>
+            <p className="text-xs text-slate-500">در حال بررسی نشست کاربری و هدایت به پنل...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // اگر توکن یا کاربر وجود ندارد: مستقیماً صفحه‌ی ورود و ثبت‌نام
+  if (!token || !currentUser || !role) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col font-['Vazirmatn',sans-serif]" dir="rtl">
+        <AuthScreen onSuccess={handleAuthSuccess} />
+      </div>
+    );
+  }
+
+  // اگر کاربر لاگین کرده است: هدایت مستقیم بر اساس نقش
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans" dir="rtl">
-      {/* هدر اصلی برنامه */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentRole={currentRole}
-        setCurrentRole={setCurrentRole}
-      />
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-['Vazirmatn',sans-serif]" dir="rtl">
+      {/* هدر پرتال متناسب با کاربر لاگین‌شده */}
+      <Navbar user={currentUser} role={role} onLogout={handleLogout} />
 
-      {/* محتوای تب فعال */}
-      <main className="flex-1 pb-16">
-        {activeTab === 'hub' && (
-          <RegistrationAndConnectionHub
-            onNavigateToStudent={(student) => {
-              if (student) setSelectedStudent(student);
-              setCurrentRole('rksp_student');
-              setActiveTab('student');
-            }}
-            onNavigateToMentor={() => {
-              setCurrentRole('rksp_mentor');
-              setActiveTab('mentor');
-            }}
-            onNavigateToAdmin={() => {
-              setCurrentRole('administrator');
-              setActiveTab('admin');
-            }}
-          />
-        )}
-        {activeTab === 'student' && <StudentPortal currentStudent={selectedStudent} />}
-        {activeTab === 'mentor' && <MentorPortal />}
-        {activeTab === 'profile' && <UserProfile currentRole={currentRole} onRoleSwitch={setCurrentRole} />}
-        {activeTab === 'admin' && <AdminDashboard />}
-        {activeTab === 'plugin_code' && <PluginCodeViewer />}
-        {activeTab === 'api_docs' && <ApiExplorer />}
+      {/* نمایش اختصاصی پرتال بر اساس نقش */}
+      <main className="flex-1 pb-12">
+        {role === 'student' && <StudentPortal currentStudent={currentUser} />}
+        {role === 'mentor' && <MentorPortal />}
+        {role === 'admin' && <AdminDashboard onLogout={handleLogout} />}
       </main>
 
-      {/* فوتر مینیمال و تمیز */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
+      {/* فوتر رسمی سامانه */}
+      <footer className="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-extrabold text-slate-900">افزونه پرتال راه کنکور (RK Student Portal)</span>
+            <span className="font-extrabold text-slate-900">پرتال راه کنکور</span>
             <span>·</span>
-            <span>نسخه ۱.۰.۰ پایدار</span>
+            <span>سامانه پایش ساعات مطالعه و برنامه‌ریزی تحصیلی</span>
           </div>
-          <div className="text-slate-400">
-            طراحی مستقل از قالب · بدون نیاز به المنتور، فرم‌ساز یا ACF · کاملاً بومی با گوتنبرگ و هسته وردپرس · معماری REST API محور
+          <div className="text-slate-400 text-[11px]">
+            panel.rahekonkur.ir
           </div>
         </div>
       </footer>
